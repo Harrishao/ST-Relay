@@ -102,6 +102,54 @@ def save_response(status_code, headers, body_data):
     print(f"[ST-Relay] Response saved to {RESPONSE_FILE}")
 
 
+def parse_sse_response(raw_bytes):
+    """解析 SSE 流式响应，重构为非流式风格的完整响应 JSON"""
+    text = raw_bytes.decode("utf-8", errors="replace")
+    content_parts = []
+    reasoning_parts = []
+    last_chunk = None
+
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or not line.startswith("data:"):
+            continue
+        data_str = line[5:].strip()
+        if data_str == "[DONE]":
+            continue
+        try:
+            chunk = json.loads(data_str)
+        except json.JSONDecodeError:
+            continue
+        last_chunk = chunk
+        choices = chunk.get("choices", [])
+        if choices:
+            delta = choices[0].get("delta", {})
+            if delta.get("content"):
+                content_parts.append(delta["content"])
+            if delta.get("reasoning_content"):
+                reasoning_parts.append(delta["reasoning_content"])
+
+    if last_chunk is None:
+        return text
+
+    finish_reason = None
+    if last_chunk.get("choices"):
+        finish_reason = last_chunk["choices"][0].get("finish_reason")
+
+    message = {"role": "assistant", "content": "".join(content_parts)}
+    if reasoning_parts:
+        message["reasoning_content"] = "".join(reasoning_parts)
+
+    return {
+        "id": last_chunk.get("id"),
+        "object": last_chunk.get("object", "").replace(".chunk", ""),
+        "created": last_chunk.get("created"),
+        "model": last_chunk.get("model"),
+        "choices": [{"index": 0, "message": message, "finish_reason": finish_reason}],
+        "usage": last_chunk.get("usage"),
+    }
+
+
 # ============ 路由 ============
 @app.route("/health", methods=["GET"])
 def health():
@@ -197,10 +245,7 @@ def proxy(path):
                     chunks.append(chunk)
                     yield chunk
             full_body = b"".join(chunks)
-            try:
-                resp_data = json.loads(full_body)
-            except (json.JSONDecodeError, ValueError):
-                resp_data = full_body.decode("utf-8", errors="replace")
+            resp_data = parse_sse_response(full_body)
             save_response(upstream_resp.status_code, dict(res_headers), resp_data)
 
         return Response(
