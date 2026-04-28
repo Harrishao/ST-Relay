@@ -1,0 +1,7 @@
+.idea/
+.claude/
+message.json
+response.json
+config.ini
+__pycache__/
+*.pyc
