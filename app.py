@@ -27,6 +27,10 @@ PORT = int(os.environ.get(
     config.get("server", "port", fallback="4396")
 ))
 PREFIX_STRING = os.environ.get("PREFIX_STRING", "")
+THINKING_MODE = os.environ.get(
+    "THINKING_MODE",
+    config.get("server", "thinking", fallback="enabled")
+)
 
 #下面这行是转发开关，设为false则不转发
 ENABLE_FORWARD = os.environ.get("ENABLE_FORWARD", "true").lower() == "true"
@@ -186,8 +190,12 @@ def proxy(path):
             data["model"] = "deepseek-v4-flash"
             modified = True
 
-        data["thinking"] = {"type": "disabled"}
-        modified = True
+        if THINKING_MODE == "disabled":
+            data["thinking"] = {"type": "disabled"}
+            modified = True
+        elif THINKING_MODE == "enabled":
+            data["thinking"] = {"type": "enabled"}
+            modified = True
 
         custom_prefix = data.pop("my_prefix", None)
         prefix_content = PREFIX_STRING
