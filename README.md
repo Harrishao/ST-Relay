@@ -6,6 +6,7 @@
 - 转发SillyTavern发送/收到的消息。
 - API KEY从SillyTavern获取
 - 将 发送 / 接收 的消息写入`message.json`/`response.json`。
+- 现在可以在config.ini中调整思考模式开关
 
 ## 快速开始
 1. 确保已安装 Python 环境。
